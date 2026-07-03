@@ -1,0 +1,51 @@
+{
+  "name": "gh-once",
+  "version": "0.1.0",
+  "description": "An exactly-once barrier, GitHub-native, with no database. The lock IS a git ref — deploy/migrate/cron side-effects run AT MOST ONCE per key, no matter how many workers race.",
+  "type": "module",
+  "bin": {
+    "gh-once": "dist/once.mjs"
+  },
+  "exports": {
+    ".": "./dist/once.mjs"
+  },
+  "files": [
+    "dist/once.mjs"
+  ],
+  "scripts": {
+    "build": "esbuild src/once.mjs --minify --format=esm --platform=node --legal-comments=none --outfile=dist/once.mjs && chmod +x dist/once.mjs",
+    "prepack": "npm run build",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "once",
+    "exactly-once",
+    "idempotent",
+    "barrier",
+    "deploy",
+    "migration",
+    "cron",
+    "git",
+    "github",
+    "gh",
+    "distributed-lock",
+    "mutex",
+    "multi-agent"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/codyrobertson/gh-once.git"
+  },
+  "bugs": {
+    "url": "https://github.com/codyrobertson/gh-once/issues"
+  },
+  "homepage": "https://github.com/codyrobertson/gh-once#readme",
+  "author": "Mackenzie Robertson <digitalcody@gmail.com>",
+  "license": "MIT",
+  "devDependencies": {
+    "esbuild": "^0.28.1"
+  }
+}
