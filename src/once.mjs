@@ -123,14 +123,19 @@ function gh(method, path, body, { retry = MAX_RETRY } = {}) {
   return last;
 }
 
-let TREE = null;
-// Any existing tree works as the barrier commit's tree (it carries no files).
-// `commits/HEAD` returns the default branch tip's tree in ONE call.
-function baseTree() {
-  if (TREE) return TREE;
-  const r = gh("GET", "commits/HEAD");
-  if (r.status !== 0) throw new Error("gh unavailable");
-  return (TREE = JSON.parse(r.out).commit.tree.sha);
+// A barrier commit carries no files, so it can point at git's UNIVERSAL empty-tree
+// constant — which means we never spend a network round-trip fetching a tree sha. Every
+// operation used to pay a GET commits/HEAD just for this; now it doesn't. The lazy
+// fallback covers the rare repo that won't accept the constant (e.g. a SHA-256 repo).
+const EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
+let TREE = EMPTY_TREE;
+function mkCommit(message) {
+  let c = gh("POST", "git/commits", { message, tree: TREE });
+  if (c.status !== 0 && TREE === EMPTY_TREE && /tree|sha|unprocessable|422/i.test(c.err)) {
+    const r = gh("GET", "commits/HEAD");
+    if (r.status === 0) { try { TREE = JSON.parse(r.out).commit.tree.sha; c = gh("POST", "git/commits", { message, tree: TREE }); } catch { /* keep original error */ } }
+  }
+  return c;
 }
 
 // Read the record behind a key. null = genuinely absent (404); THROWS on a transient/
@@ -152,20 +157,22 @@ function getRecord(key) {
 //   won     : this call created it first → DO the guarded work
 //   done    : someone already created it → SKIP (holder = who/when, best effort)
 //   degraded: gh offline → caller decides (fail-closed unless --degraded-ok)
-export function mark(key, { by = resolveActor() } = {}) {
+export function mark(key, { by = resolveActor(), provenance = false } = {}) {
   const k = normalizeKey(key);
   if (k === null) throw new Error("empty once key");
-  let message;
-  try { baseTree(); message = JSON.stringify({ v: 1, key: k, by, at: new Date().toISOString() }); }
-  catch { return { result: "degraded" }; }
-  const c = gh("POST", "git/commits", { message, tree: baseTree() });
+  const message = JSON.stringify({ v: 1, key: k, by, at: new Date().toISOString() });
+  const c = mkCommit(message);
   if (c.status !== 0) return { result: "degraded" };
   const sha = JSON.parse(c.out).sha;
   const ref = gh("POST", "git/refs", { ref: refFull(k), sha });
   if (ref.status === 0) return { result: "won" };
+  // Already done. Do NOT fetch provenance here — the "done" path is the one hit
+  // repeatedly (a deploy guard re-run many times), so we keep it to 2 calls and leave
+  // who/when to `check`/`list`, which exist for exactly that. Pass {provenance:true} to
+  // opt back in (used by nothing on the hot path).
   if (/already exists/i.test(ref.err)) {
     let holder = null;
-    try { holder = getRecord(k); } catch { /* metadata is best-effort */ }
+    if (provenance) { try { holder = getRecord(k); } catch { /* best-effort */ } }
     return { result: "done", holder };
   }
   return { result: "degraded" };
@@ -213,8 +220,7 @@ function doRun(key, { degradedOk }) {
   const r = mark(key);
   if (r.result === "won") { console.log("won"); return 0; }
   if (r.result === "done") {
-    const h = r.holder;
-    console.error(`↩ already done${h?.by ? ` by ${h.by}` : ""}${h?.at ? ` at ${h.at}` : ""} — skipping.`);
+    console.error("↩ already done — skipping (run `gh-once check <key>` for who/when).");
     console.log("done");
     return 10;
   }
