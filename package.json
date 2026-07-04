@@ -13,7 +13,7 @@
     "dist/once.mjs"
   ],
   "scripts": {
-    "build": "esbuild src/once.mjs --minify --format=esm --platform=node --legal-comments=none --outfile=dist/once.mjs && chmod +x dist/once.mjs",
+    "build": "esbuild src/once.mjs --bundle --minify --format=esm --platform=node --legal-comments=none --outfile=dist/once.mjs && chmod +x dist/once.mjs",
     "prepack": "npm run build",
     "test": "node --test"
   },

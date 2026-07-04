@@ -33,6 +33,7 @@
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { realpathSync } from "node:fs";
+import { writeState } from "./state.mjs";
 
 const NAMESPACE = (process.env.ONCE_NAMESPACE || "once").replace(/^\/+|\/+$/g, "");
 const MAX_RETRY = Number(process.env.GH_ONCE_MAX_RETRY) || 5;
@@ -218,7 +219,7 @@ const RESERVED = new Set(["run", "check", "list", "reset", "help", "--help", "-h
 
 function doRun(key, { degradedOk }) {
   const r = mark(key);
-  if (r.result === "won") { console.log("won"); return 0; }
+  if (r.result === "won") { writeState("once", { key, result: "won" }); console.log("won"); return 0; }
   if (r.result === "done") {
     console.error("↩ already done — skipping (run `gh-once check <key>` for who/when).");
     console.log("done");
