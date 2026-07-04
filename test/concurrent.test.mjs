@@ -32,7 +32,7 @@ test.after(() => {
   if (skip) return;
   const r = spawnSync("gh", ["api", `repos/{owner}/{repo}/git/matching-refs/${NS}`, "--jq", ".[].ref"], { env, encoding: "utf8" });
   for (const ref of (r.stdout || "").split("\n").filter(Boolean))
-    spawnSync("gh", ["api", "--method", "DELETE", `repos/{owner}/{repo}/git/${ref.replace(/^refs\//, "")}`], { env });
+    spawnSync("gh", ["api", "--method", "DELETE", `repos/{owner}/{repo}/git/refs/${ref.replace(/^refs\//, "")}`], { env });
 });
 
 test("exactly ONE of N concurrent racers wins the same key", { skip }, async () => {
