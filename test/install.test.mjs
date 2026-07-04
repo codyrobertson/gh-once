@@ -6,7 +6,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, rmSync, mkdirSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdtempSync, rmSync, mkdirSync, symlinkSync, writeFileSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -45,6 +45,17 @@ test("the tarball ships exactly what's needed and nothing stray", { skip }, () =
     assert.ok(FILES.includes(need), `published tarball is missing ${need} (files: ${FILES.join(", ")})`);
   for (const f of FILES)
     assert.ok(!/(^|\/)(\.env|node_modules\/|test\/|src\/|\.git\/)/.test(f), `stray file in tarball: ${f}`);
+});
+
+test("the built dist is fully bundled — no unresolved relative import survives", { skip }, () => {
+  // The build is `esbuild --bundle` precisely so the 2nd src file (state.mjs) is inlined.
+  // If bundling regresses, a `from "./state.mjs"` leaks into dist and never ships → the
+  // CLI crashes at runtime with a missing module. A surviving relative import is the tell.
+  const { root, pkgDir } = installTarball();
+  try {
+    const code = readFileSync(join(pkgDir, "dist", "once.mjs"), "utf8");
+    assert.doesNotMatch(code, /from\s*['"]\.\.?\//, "dist contains an unresolved relative import — state.mjs was not inlined by esbuild --bundle");
+  } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
 test("installed bin runs through npm's symlink (no silent no-op)", { skip }, () => {
